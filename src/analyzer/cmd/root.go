@@ -14,6 +14,7 @@ import (
 var (
 	kubeConfigPath string
 	contextNames   []string
+	namespace      string
 	allNamespaces  bool
 	outputFormat   string
 	verbose        bool
@@ -22,6 +23,10 @@ var (
 // NewRootCmd creates the root command for the analyzer
 func NewRootCmd(version string) *cobra.Command {
 	cmd := &cobra.Command{
+		// Cobra derives the command name (used in "help for %s", "version
+		// for %s", etc.) from the first whitespace-delimited word of Use, so
+		// this must stay a single token — the `kubectl` invocation form is
+		// shown in Long/Example instead, not baked into Use itself.
 		Use:     "ingress-shift-analyzer",
 		Short:   "Analyze Ingress resources for Gateway API migration",
 		Version: version,
@@ -32,7 +37,13 @@ It enumerates Ingress resources across all contexts and namespaces,
 maps every annotation against a maintained knowledge base,
 flags classes that break naive translation, and emits a scored report
 with percentage translatable, list of manual interventions with effort estimate,
-and recommendation for target controller.`,
+and recommendation for target controller.
+
+Once installed via krew, invoke it as a kubectl plugin:
+  kubectl ingress-shift-analyzer -A`,
+		Example: `  kubectl ingress-shift-analyzer -A
+  kubectl ingress-shift-analyzer -n my-namespace -o json
+  kubectl ingress-shift-analyzer -A --context prod-us --context prod-eu`,
 		RunE: runRootCmd,
 		// A cluster/analysis failure is a runtime outcome, not a command-line
 		// usage mistake — don't dump the full flag reference on every such
@@ -44,6 +55,7 @@ and recommendation for target controller.`,
 	// Add flags
 	cmd.Flags().StringVar(&kubeConfigPath, "kubeconfig", "", "Path to kubeconfig file")
 	cmd.Flags().StringSliceVar(&contextNames, "context", nil, "Kubeconfig context(s) to analyze (default: all contexts in the kubeconfig)")
+	cmd.Flags().StringVarP(&namespace, "namespace", "n", "", "Analyze a specific namespace (default: \"default\"; ignored if --all-namespaces is set)")
 	cmd.Flags().BoolVarP(&allNamespaces, "all-namespaces", "A", false, "Analyze all namespaces")
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "Output format (table, json, yaml)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
@@ -64,9 +76,13 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load kubeconfig contexts: %w", err)
 	}
 
-	var namespace string
-	if !allNamespaces {
-		namespace = "default"
+	if allNamespaces && namespace != "" {
+		return fmt.Errorf("--namespace and --all-namespaces are mutually exclusive")
+	}
+
+	targetNamespace := namespace
+	if !allNamespaces && targetNamespace == "" {
+		targetNamespace = "default"
 	}
 
 	perContext := make(map[string]*pkg.AnalysisReport, len(restConfigs))
@@ -83,7 +99,7 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "Analyzing context %q...\n", name)
 		}
 
-		report, err := pkg.AnalyzeIngressResources(ctx, client, namespace, verbose)
+		report, err := pkg.AnalyzeIngressResources(ctx, client, targetNamespace, verbose)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: skipping context %q: failed to analyze ingress resources: %v\n", name, err)
 			failedContexts[name] = err

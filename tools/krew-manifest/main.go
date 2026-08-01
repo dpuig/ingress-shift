@@ -29,11 +29,17 @@ type selector struct {
 	MatchLabels matchLabels `yaml:"matchLabels"`
 }
 
+type fileMapping struct {
+	From string `yaml:"from"`
+	To   string `yaml:"to"`
+}
+
 type platform struct {
-	Selector selector `yaml:"selector"`
-	URI      string   `yaml:"uri"`
-	Sha256   string   `yaml:"sha256"`
-	Bin      string   `yaml:"bin"`
+	Selector selector      `yaml:"selector"`
+	URI      string        `yaml:"uri"`
+	Sha256   string        `yaml:"sha256"`
+	Files    []fileMapping `yaml:"files"`
+	Bin      string        `yaml:"bin"`
 }
 
 type link struct {
@@ -46,6 +52,7 @@ type spec struct {
 	Platforms        []platform `yaml:"platforms"`
 	ShortDescription string     `yaml:"shortDescription"`
 	Description      string     `yaml:"description"`
+	Caveats          string     `yaml:"caveats"`
 	Homepage         string     `yaml:"homepage"`
 	Links            []link     `yaml:"links"`
 }
@@ -93,11 +100,19 @@ func main() {
 			os.Exit(1)
 		}
 
+		binName := binaryName + tgt.ext
 		platforms = append(platforms, platform{
 			Selector: selector{MatchLabels: matchLabels{OS: tgt.os, Arch: tgt.arch}},
 			URI:      fmt.Sprintf("https://github.com/%s/releases/download/%s/%s", repo, version, archiveName),
 			Sha256:   sum,
-			Bin:      binaryName + tgt.ext,
+			// The release archive bundles LICENSE alongside the binary
+			// (.github/workflows/release.yml); extract both, per krew's
+			// submission guidance to ship the license with the plugin.
+			Files: []fileMapping{
+				{From: "LICENSE", To: "."},
+				{From: binName, To: "."},
+			},
+			Bin: binName,
 		})
 	}
 
@@ -117,6 +132,17 @@ maps every annotation against a maintained knowledge base,
 flags classes that break naive translation, and emits a scored report
 with percentage translatable, list of manual interventions with effort estimate,
 and recommendation for target controller.
+`,
+			Caveats: `This plugin only needs read-only access (list) to Ingress resources — it
+never writes to your cluster.
+
+By default it analyzes the "default" namespace across every context in
+your kubeconfig. Use -A/--all-namespaces, -n/--namespace, or --context to
+scope it differently:
+
+  kubectl ingress-shift-analyzer -A
+  kubectl ingress-shift-analyzer -n my-namespace
+  kubectl ingress-shift-analyzer -A --context prod-us
 `,
 			Homepage: fmt.Sprintf("https://github.com/%s", repo),
 			Links: []link{

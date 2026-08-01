@@ -17,6 +17,11 @@ spec:
         arch: amd64
     uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-linux-amd64.tar.gz
     sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    files:
+    - from: LICENSE
+      to: .
+    - from: ingress-shift-analyzer
+      to: .
     bin: ingress-shift-analyzer
   - selector:
       matchLabels:
@@ -24,6 +29,11 @@ spec:
         arch: arm64
     uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-linux-arm64.tar.gz
     sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    files:
+    - from: LICENSE
+      to: .
+    - from: ingress-shift-analyzer
+      to: .
     bin: ingress-shift-analyzer
   - selector:
       matchLabels:
@@ -31,6 +41,11 @@ spec:
         arch: amd64
     uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-darwin-amd64.tar.gz
     sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    files:
+    - from: LICENSE
+      to: .
+    - from: ingress-shift-analyzer
+      to: .
     bin: ingress-shift-analyzer
   - selector:
       matchLabels:
@@ -38,6 +53,11 @@ spec:
         arch: arm64
     uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-darwin-arm64.tar.gz
     sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    files:
+    - from: LICENSE
+      to: .
+    - from: ingress-shift-analyzer
+      to: .
     bin: ingress-shift-analyzer
   - selector:
       matchLabels:
@@ -45,6 +65,11 @@ spec:
         arch: amd64
     uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-windows-amd64.zip
     sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    files:
+    - from: LICENSE
+      to: .
+    - from: ingress-shift-analyzer.exe
+      to: .
     bin: ingress-shift-analyzer.exe
   shortDescription: "Ingress Shift Analyzer - Analyze Ingress resources for Gateway API migration"
   description: |
@@ -56,6 +81,17 @@ spec:
     flags classes that break naive translation, and emits a scored report
     with percentage translatable, list of manual interventions with effort estimate,
     and recommendation for target controller.
+  caveats: |
+    This plugin only needs read-only access (list) to Ingress resources — it
+    never writes to your cluster.
+
+    By default it analyzes the "default" namespace across every context in
+    your kubeconfig. Use -A/--all-namespaces, -n/--namespace, or --context to
+    scope it differently:
+
+      kubectl ingress-shift-analyzer -A
+      kubectl ingress-shift-analyzer -n my-namespace
+      kubectl ingress-shift-analyzer -A --context prod-us
   homepage: https://github.com/dpuig/ingress-shift
   links:
   - text: Documentation

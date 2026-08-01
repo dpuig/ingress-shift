@@ -45,8 +45,12 @@ All three are Go, compile to a single static binary, run entirely on-premises, a
 ### 1. Annotation Coverage Analyzer
 
 ```bash
-# Install via krew (once a release is tagged)
+# Once submitted to and accepted into the community krew-index:
 kubectl krew install ingress-shift-analyzer
+
+# Until then, install directly from this repo's own manifest (works the
+# same way — krew-index submission just adds discoverability):
+kubectl krew install --manifest-url=https://raw.githubusercontent.com/dpuig/ingress-shift/main/krew.yaml
 
 # Or build from source
 go install github.com/dpuig/ingress-shift/src/analyzer@latest
@@ -54,10 +58,13 @@ go install github.com/dpuig/ingress-shift/src/analyzer@latest
 
 ```bash
 # Analyze all namespaces across every kubeconfig context
-ingress-shift-analyzer -A
+kubectl ingress-shift-analyzer -A
 
-# Restrict to specific contexts, get JSON out
-ingress-shift-analyzer -A --context prod-us --context prod-eu -o json
+# A single namespace, JSON out
+kubectl ingress-shift-analyzer -n my-namespace -o json
+
+# Restrict to specific contexts
+kubectl ingress-shift-analyzer -A --context prod-us --context prod-eu
 ```
 
 Sample output includes a complexity score, a percentage of annotations directly translatable, a per-item effort estimate for everything that isn't, and a named Gateway API controller recommendation with reasoning.
@@ -166,7 +173,7 @@ docs/                 DATA_HANDLING.md and other reference docs
 
 ## Status & roadmap
 
-Pre-release — the analyzer, harness, and orchestrator all build and pass their test suites, but no version has been tagged yet.
+Pre-release — the analyzer, harness, and orchestrator all build and pass their test suites, and the analyzer's krew packaging (manifest, LICENSE bundling, `-n`/`-A`/`--context` flag parity, cloud-auth plugin support) has been validated with a real local `kubectl krew install --manifest=... --archive=...` round-trip. What's left is entirely release mechanics, not code: tag a `v*` release to trigger the signed cross-platform build (`.github/workflows/release.yml`), then submit `krew.yaml` as a PR to [krew-index](https://github.com/kubernetes-sigs/krew-index) for `kubectl krew install ingress-shift-analyzer` to resolve without `--manifest-url`.
 
 ## Contributing
 

@@ -4,6 +4,12 @@ import (
 	"fmt"
 	"os"
 
+	// Registers in-tree cloud provider auth plugins (GCP, Azure, OpenStack)
+	// so kubeconfigs using the older `auth-provider:` format authenticate
+	// correctly — recommended by krew's plugin development best practices
+	// for any Go-based kubectl plugin.
+	_ "k8s.io/client-go/plugin/pkg/client/auth"
+
 	"github.com/dpuig/ingress-shift/src/analyzer/cmd"
 )
 
