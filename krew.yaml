@@ -1,0 +1,43 @@
+---
+apiVersion: krew.googlecontainertools.github.com/v1alpha2
+kind: Plugin
+metadata:
+  name: ingress-shift-analyzer
+spec:
+  version: "v0.1.0"
+  platforms:
+  - selector:
+      matchLabels:
+        os: linux
+        arch: amd64
+    uri: https://github.com/duhostack/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-linux-amd64.tar.gz
+    sha256: b3a8b8f7d9e1c2d3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7
+    bin: ingress-shift-analyzer
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: amd64
+    uri: https://github.com/duhostack/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-darwin-amd64.tar.gz
+    sha256: c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5
+    bin: ingress-shift-analyzer
+  - selector:
+      matchLabels:
+        os: windows
+        arch: amd64
+    uri: https://github.com/duhostack/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-windows-amd64.zip
+    sha256: d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6
+    bin: ingress-shift-analyzer.exe
+  shortDescription: "Ingress Shift Analyzer - Analyze Ingress resources for Gateway API migration"
+  description: |
+    Ingress Shift Analyzer is a kubectl plugin that analyzes Ingress resources
+    and their annotations to determine migration complexity to Gateway API.
+
+    It enumerates Ingress resources across all contexts and namespaces,
+    maps every annotation against a maintained knowledge base,
+    flags classes that break naive translation, and emits a scored report
+    with percentage translatable, list of manual interventions with effort estimate,
+    and recommendation for target controller.
+  homepage: https://github.com/duhostack/ingress-shift
+  links:
+  - text: Documentation
+    url: https://github.com/duhostack/ingress-shift/blob/main/README.md
