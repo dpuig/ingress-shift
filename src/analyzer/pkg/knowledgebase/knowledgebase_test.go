@@ -86,6 +86,34 @@ func TestUnknownDefaultsToNoEquivalent(t *testing.T) {
 	}
 }
 
+func TestIsBookkeeping(t *testing.T) {
+	bookkeeping := []string{
+		"kubectl.kubernetes.io/last-applied-configuration",
+		"meta.helm.sh/release-name",
+		"meta.helm.sh/release-namespace",
+		"helm.sh/hook",
+		"argocd.argoproj.io/tracking-id",
+		"fluxcd.io/automated",
+		"kustomize.toolkit.fluxcd.io/checksum",
+		"field.cattle.io/description",
+	}
+	for _, name := range bookkeeping {
+		if !IsBookkeeping(name) {
+			t.Errorf("expected %q to be classified as bookkeeping (tooling metadata, not ingress-controller semantics)", name)
+		}
+	}
+
+	notBookkeeping := []string{
+		"nginx.ingress.kubernetes.io/rewrite-target",
+		"custom.example.com/whatever",
+	}
+	for _, name := range notBookkeeping {
+		if IsBookkeeping(name) {
+			t.Errorf("expected %q to NOT be classified as bookkeeping", name)
+		}
+	}
+}
+
 // The plan explicitly names six classes that break naive translation:
 // auth snippets, custom NGINX config blocks, rewrite semantics, session
 // affinity, rate limiting, and mTLS passthrough. Each must be represented

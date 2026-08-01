@@ -1,12 +1,12 @@
-// Package knowledgebase loads the versioned annotation knowledge base described
-// in PLAN.md: "Treat as a versioned data file, not embedded code." It is the
-// compounding asset the analyzer sells against — every customer engagement adds
-// entries to annotations.yaml, independent of the analyzer binary's own releases.
+// Package knowledgebase loads the versioned annotation knowledge base: a
+// data file, not embedded code, so it can grow and be corrected
+// independently of the analyzer binary's own releases.
 package knowledgebase
 
 import (
 	_ "embed"
 	"fmt"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
@@ -94,4 +94,36 @@ func Unknown(name string) Entry {
 		GatewayAPINote: "Not present in the knowledge base; requires manual research.",
 		Effort:         EffortHigh,
 	}
+}
+
+// bookkeepingPrefixes are annotation key prefixes added by cluster tooling
+// (kubectl, Helm, ArgoCD, Flux, Rancher) rather than by an ingress
+// controller. They carry zero migration complexity — kubectl apply, for
+// example, stamps kubectl.kubernetes.io/last-applied-configuration onto
+// nearly every real-world Ingress object — and must not be scored as
+// annotations with "no Gateway API equivalent"; that would be actively
+// wrong, not just noisy, since these have no bearing on ingress behavior
+// at all. Discovered by running the analyzer against real kubectl-applied
+// clusters, where kubectl's own bookkeeping annotation was otherwise the
+// single largest contributor to a cluster's reported complexity score.
+var bookkeepingPrefixes = []string{
+	"kubectl.kubernetes.io/",
+	"meta.helm.sh/",
+	"helm.sh/",
+	"argocd.argoproj.io/",
+	"fluxcd.io/",
+	"kustomize.toolkit.fluxcd.io/",
+	"field.cattle.io/",
+}
+
+// IsBookkeeping reports whether an annotation is cluster/GitOps tooling
+// metadata rather than an ingress-controller-semantic annotation, and
+// should be excluded from migration analysis entirely.
+func IsBookkeeping(name string) bool {
+	for _, prefix := range bookkeepingPrefixes {
+		if strings.HasPrefix(name, prefix) {
+			return true
+		}
+	}
+	return false
 }

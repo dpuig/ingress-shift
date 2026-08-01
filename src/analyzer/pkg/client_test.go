@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"errors"
 	"slices"
 	"testing"
 
@@ -61,6 +62,32 @@ func TestAnalyzeIngressResources(t *testing.T) {
 		assert.Equal(t, 1, report.NoEquivalent)
 		assert.Len(t, report.ManualInterventions, 1)
 		assert.Equal(t, "high", report.ManualInterventions[0].Effort)
+	})
+
+	t.Run("kubectl/helm/gitops bookkeeping annotations are ignored, not scored as no-equivalent", func(t *testing.T) {
+		mockClient := &MockKubernetesClient{
+			ingressList: []runtime.Object{
+				&metav1.PartialObjectMetadata{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "kubectl-applied-ingress",
+						Namespace: "default",
+						Annotations: map[string]string{
+							"kubectl.kubernetes.io/last-applied-configuration": `{"apiVersion":"networking.k8s.io/v1"}`,
+							"meta.helm.sh/release-name":                        "my-release",
+							"nginx.ingress.kubernetes.io/ssl-redirect":         "true",
+						},
+					},
+				},
+			},
+		}
+
+		report, err := AnalyzeIngressResources(context.Background(), mockClient, "default", false)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, report.TotalIngresses)
+		assert.Len(t, report.AnnotationClasses, 1, "bookkeeping annotations should not appear as annotation classes at all")
+		assert.Equal(t, "nginx.ingress.kubernetes.io/ssl-redirect", report.AnnotationClasses[0].Name)
+		assert.Equal(t, 1, report.Translatable)
+		assert.Equal(t, 0, report.NoEquivalent, "kubectl/helm bookkeeping must not count as 'no Gateway API equivalent'")
 	})
 
 	// Create a mock Kubernetes client with test data
@@ -169,12 +196,50 @@ func TestMergeReports(t *testing.T) {
 	merged := MergeReports(map[string]*AnalysisReport{
 		"cluster-a": reportA,
 		"cluster-b": reportB,
-	})
+	}, nil)
 
 	assert.Equal(t, 2, merged.TotalIngresses)
 	assert.Len(t, merged.Contexts, 2)
 	assert.Len(t, merged.AnnotationClasses, 1)
 	assert.Equal(t, 2, merged.AnnotationClasses[0].Count)
+}
+
+func TestMergeReportsRecordsFailedContextsInsteadOfDropping(t *testing.T) {
+	ctxAClient := &MockKubernetesClient{
+		ingressList: []runtime.Object{
+			&metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "a-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.ingress.kubernetes.io/ssl-redirect": "true",
+					},
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+	reportA, err := AnalyzeIngressResources(ctx, ctxAClient, "", false)
+	assert.NoError(t, err)
+
+	merged := MergeReports(
+		map[string]*AnalysisReport{"cluster-a": reportA},
+		map[string]error{"cluster-stale": errors.New("dial tcp: connection refused")},
+	)
+
+	assert.Equal(t, 1, merged.TotalIngresses)
+	assert.Len(t, merged.Contexts, 2)
+
+	var found bool
+	for _, c := range merged.Contexts {
+		if c.Context == "cluster-stale" {
+			found = true
+			assert.Equal(t, "dial tcp: connection refused", c.Error)
+			assert.Equal(t, 0, c.TotalIngresses)
+		}
+	}
+	assert.True(t, found, "expected the failed context to appear in the merged report")
 }
 
 func TestCalculateComplexityScore(t *testing.T) {

@@ -108,6 +108,10 @@ func AnalyzeIngressResources(ctx context.Context, client KubernetesClientInterfa
 		partialObj := obj.(*metav1.PartialObjectMetadata)
 
 		for annotationName, annotationValue := range partialObj.Annotations {
+			if knowledgebase.IsBookkeeping(annotationName) {
+				continue
+			}
+
 			if verbose {
 				fmt.Printf("Processing annotation: %s = %s\n", annotationName, annotationValue)
 			}
@@ -141,20 +145,19 @@ func AnalyzeIngressResources(ctx context.Context, client KubernetesClientInterfa
 // single aggregate report, preserving a per-context breakdown for multi-context
 // clusters. Annotation classes with the same name are summed rather than
 // duplicated.
-func MergeReports(perContext map[string]*AnalysisReport) *AnalysisReport {
+//
+// failedContexts records contexts that could not be analyzed (e.g. an
+// unreachable API server, a stale kubeconfig entry) so one bad context
+// doesn't abort the whole multi-context run — it shows up in the merged
+// report's Contexts list with its error recorded instead. Pass nil if every
+// context succeeded.
+func MergeReports(perContext map[string]*AnalysisReport, failedContexts map[string]error) *AnalysisReport {
 	merged := &AnalysisReport{
 		AnnotationClasses: make([]AnnotationClass, 0),
-		Contexts:          make([]ContextResult, 0, len(perContext)),
+		Contexts:          make([]ContextResult, 0, len(perContext)+len(failedContexts)),
 	}
 
-	contextNames := make([]string, 0, len(perContext))
-	for name := range perContext {
-		contextNames = append(contextNames, name)
-	}
-	sort.Strings(contextNames)
-
-	for _, name := range contextNames {
-		report := perContext[name]
+	for name, report := range perContext {
 		merged.Contexts = append(merged.Contexts, ContextResult{
 			Context:        name,
 			TotalIngresses: report.TotalIngresses,
@@ -165,6 +168,17 @@ func MergeReports(perContext map[string]*AnalysisReport) *AnalysisReport {
 			merged.addAnnotationClassRaw(class)
 		}
 	}
+
+	for name, err := range failedContexts {
+		merged.Contexts = append(merged.Contexts, ContextResult{
+			Context: name,
+			Error:   err.Error(),
+		})
+	}
+
+	sort.Slice(merged.Contexts, func(i, j int) bool {
+		return merged.Contexts[i].Context < merged.Contexts[j].Context
+	})
 
 	merged.finalize()
 	return merged

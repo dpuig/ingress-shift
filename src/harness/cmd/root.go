@@ -12,6 +12,11 @@ func NewRootCmd(version string) *cobra.Command {
 incumbent ingress controller and a candidate Gateway API controller, diffs
 the responses, and produces a signed parity report — the artifact that lets
 someone approve the production cutover.`,
+		// A failed dispatch, signature check, etc. is a runtime outcome, not
+		// a command-line usage mistake — don't dump the full flag reference
+		// on every such error. main() prints the error itself.
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 
 	cmd.AddCommand(newServeCmd())

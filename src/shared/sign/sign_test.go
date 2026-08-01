@@ -12,6 +12,52 @@ type samplePayload struct {
 	Count   int    `json:"count"`
 }
 
+// TestVerifySurvivesIndentedFileRoundTrip guards against a real bug found
+// while testing the harness end-to-end: the CLI commands write Documents to
+// disk via a json.Encoder with SetIndent for human readability. If Payload
+// were json.RawMessage, that indent pass rewrites whitespace through the
+// nested structural JSON, changing the exact bytes that were signed, so
+// every report written to a file failed verification. Payload must stay
+// immune to that — this test signs, writes through an indenting encoder
+// (matching writeJSON in the CLI commands), reads it back, and verifies.
+func TestVerifySurvivesIndentedFileRoundTrip(t *testing.T) {
+	kp, err := GenerateKeyPair()
+	if err != nil {
+		t.Fatalf("GenerateKeyPair failed: %v", err)
+	}
+
+	doc, err := SignJSON(kp.PrivateKey, samplePayload{Message: "parity report", Count: 42})
+	if err != nil {
+		t.Fatalf("SignJSON failed: %v", err)
+	}
+
+	path := filepath.Join(t.TempDir(), "report.json")
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	enc := json.NewEncoder(f)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(doc); err != nil {
+		t.Fatalf("failed to encode: %v", err)
+	}
+	_ = f.Close()
+
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("failed to read file: %v", err)
+	}
+
+	var readBack Document
+	if err := json.Unmarshal(raw, &readBack); err != nil {
+		t.Fatalf("failed to unmarshal: %v", err)
+	}
+
+	if err := Verify(&readBack); err != nil {
+		t.Fatalf("expected verification to succeed after an indented file round-trip, got: %v", err)
+	}
+}
+
 func TestSignAndVerifyRoundTrip(t *testing.T) {
 	kp, err := GenerateKeyPair()
 	if err != nil {

@@ -34,6 +34,11 @@ flags classes that break naive translation, and emits a scored report
 with percentage translatable, list of manual interventions with effort estimate,
 and recommendation for target controller.`,
 		RunE: runRootCmd,
+		// A cluster/analysis failure is a runtime outcome, not a command-line
+		// usage mistake — don't dump the full flag reference on every such
+		// error. main() prints the error itself.
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 
 	// Add flags
@@ -65,10 +70,13 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 	}
 
 	perContext := make(map[string]*pkg.AnalysisReport, len(restConfigs))
+	failedContexts := make(map[string]error)
 	for name, restConfig := range restConfigs {
 		client, err := pkg.NewKubernetesClient(restConfig)
 		if err != nil {
-			return fmt.Errorf("failed to create kubernetes client for context %q: %w", name, err)
+			fmt.Fprintf(os.Stderr, "Warning: skipping context %q: failed to create kubernetes client: %v\n", name, err)
+			failedContexts[name] = err
+			continue
 		}
 
 		if verbose {
@@ -77,12 +85,18 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 
 		report, err := pkg.AnalyzeIngressResources(ctx, client, namespace, verbose)
 		if err != nil {
-			return fmt.Errorf("failed to analyze ingress resources in context %q: %w", name, err)
+			fmt.Fprintf(os.Stderr, "Warning: skipping context %q: failed to analyze ingress resources: %v\n", name, err)
+			failedContexts[name] = err
+			continue
 		}
 		perContext[name] = report
 	}
 
-	report := pkg.MergeReports(perContext)
+	if len(perContext) == 0 {
+		return fmt.Errorf("failed to analyze any context (%d attempted, all failed)", len(failedContexts))
+	}
+
+	report := pkg.MergeReports(perContext, failedContexts)
 
 	// Output based on format
 	switch outputFormat {

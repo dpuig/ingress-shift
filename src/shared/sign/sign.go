@@ -107,10 +107,21 @@ func isSpace(c byte) bool {
 // Document is a JSON payload plus a detached ed25519 signature and the
 // public key fingerprint needed to verify it, without requiring the
 // verifier to already have the key on hand.
+//
+// Payload is deliberately []byte, not json.RawMessage: encoding/json
+// base64-encodes a plain []byte field as an opaque string, whereas
+// json.RawMessage is spliced in as structural JSON. That distinction
+// matters because Go's indent-and-reformat pass (json.Encoder with
+// SetIndent, which the CLI commands use to write human-readable files)
+// rewrites whitespace through any nested structural JSON, silently
+// changing the exact bytes that were signed. A base64 string's content is
+// opaque to that reformatting, so the signed bytes survive being written
+// to disk, pretty-printed, or re-encoded, no matter how the caller
+// chooses to marshal the envelope around it.
 type Document struct {
-	Payload   json.RawMessage `json:"payload"`
-	Signature string          `json:"signature"`
-	PublicKey string          `json:"public_key"`
+	Payload   []byte `json:"payload"`
+	Signature string `json:"signature"`
+	PublicKey string `json:"public_key"`
 }
 
 // SignJSON marshals payload to canonical JSON and produces a signed Document.

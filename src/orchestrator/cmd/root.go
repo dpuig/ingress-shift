@@ -14,9 +14,15 @@ using Gateway API's native HTTPRoute backendRef weights. It watches
 SLO/health checks during each bake period and rolls back to 100% incumbent
 in a single patch the instant a breach is detected — automatically, in
 seconds, not minutes.`,
+		// A rolled-back cutover or an unreachable cluster is a runtime
+		// outcome, not a command-line usage mistake — don't dump the full
+		// flag reference on every such error. main() prints the error itself.
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 
 	cmd.AddCommand(newRunCmd())
+	cmd.AddCommand(newVerifyCmd())
 
 	return cmd
 }
