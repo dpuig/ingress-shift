@@ -29,27 +29,59 @@ func (r *AnalysisReport) ToYAML(w io.Writer) error {
 
 // PrintTable prints the report in a formatted table
 func (r *AnalysisReport) PrintTable(w io.Writer) {
-	fmt.Fprintf(w, "Ingress Shift Analysis Report\n")
-	fmt.Fprintf(w, "============================\n\n")
+	_, _ = fmt.Fprintf(w, "Ingress Shift Analysis Report\n")
+	_, _ = fmt.Fprintf(w, "============================\n\n")
+
+	if len(r.Contexts) > 0 {
+		_, _ = fmt.Fprintf(w, "Contexts analyzed:\n")
+		for _, c := range r.Contexts {
+			if c.Error != "" {
+				_, _ = fmt.Fprintf(w, "  %s: ERROR: %s\n", c.Context, c.Error)
+			} else {
+				_, _ = fmt.Fprintf(w, "  %s: %d ingress resources\n", c.Context, c.TotalIngresses)
+			}
+		}
+		_, _ = fmt.Fprintf(w, "\n")
+	}
 
 	// Summary statistics
-	fmt.Fprintf(w, "Summary:\n")
-	fmt.Fprintf(w, "  Total Ingress Resources: %d\n", r.TotalIngresses)
-	fmt.Fprintf(w, "  Translatable Annotations: %d\n", r.Translatable)
-	fmt.Fprintf(w, "  Requires Manual Intervention: %d\n", r.NeedsManualIntervention)
-	fmt.Fprintf(w, "  No Gateway API Equivalent: %d\n", r.NoEquivalent)
-	fmt.Fprintf(w, "  Complexity Score: %.1f%%\n\n", r.ComplexityScore)
+	_, _ = fmt.Fprintf(w, "Summary:\n")
+	_, _ = fmt.Fprintf(w, "  Total Ingress Resources: %d\n", r.TotalIngresses)
+	_, _ = fmt.Fprintf(w, "  Translatable Annotation Classes: %d\n", r.Translatable)
+	_, _ = fmt.Fprintf(w, "  Requires Manual Intervention: %d\n", r.NeedsManualIntervention)
+	_, _ = fmt.Fprintf(w, "  No Gateway API Equivalent: %d\n", r.NoEquivalent)
+	_, _ = fmt.Fprintf(w, "  Percentage Directly Translatable: %.1f%%\n", r.PercentTranslatable)
+	_, _ = fmt.Fprintf(w, "  Complexity Score: %.1f%%\n\n", r.ComplexityScore)
+
+	if r.ControllerRecommendation != nil {
+		_, _ = fmt.Fprintf(w, "Recommended Target Controller: %s\n", r.ControllerRecommendation.Controller)
+		for _, reason := range r.ControllerRecommendation.Reasoning {
+			_, _ = fmt.Fprintf(w, "  - %s\n", reason)
+		}
+		_, _ = fmt.Fprintf(w, "\n")
+	}
 
 	// Recommendations
-	fmt.Fprintf(w, "Recommendations:\n")
+	_, _ = fmt.Fprintf(w, "Recommendations:\n")
 	for _, rec := range r.Recommendations {
-		fmt.Fprintf(w, "  - %s\n", rec)
+		_, _ = fmt.Fprintf(w, "  - %s\n", rec)
 	}
-	fmt.Fprintf(w, "\n")
+	_, _ = fmt.Fprintf(w, "\n")
+
+	if len(r.ManualInterventions) > 0 {
+		_, _ = fmt.Fprintf(w, "Manual Interventions (effort estimate):\n")
+		writer := tabwriter.NewWriter(w, 0, 0, 3, ' ', tabwriter.AlignRight)
+		_, _ = fmt.Fprintf(writer, "ANNOTATION\tCOUNT\tEFFORT\tREASON\n")
+		for _, mi := range r.ManualInterventions {
+			_, _ = fmt.Fprintf(writer, "%s\t%d\t%s\t%s\n", mi.Annotation, mi.Count, mi.Effort, mi.Reason)
+		}
+		_ = writer.Flush()
+		_, _ = fmt.Fprintf(w, "\n")
+	}
 
 	// Annotation Classes
 	if len(r.AnnotationClasses) > 0 {
-		fmt.Fprintf(w, "Annotation Classes:\n")
+		_, _ = fmt.Fprintf(w, "Annotation Classes:\n")
 
 		// Sort annotation classes by count (descending)
 		sort.Slice(r.AnnotationClasses, func(i, j int) bool {
@@ -58,8 +90,8 @@ func (r *AnalysisReport) PrintTable(w io.Writer) {
 
 		// Create a tab writer for formatted output
 		writer := tabwriter.NewWriter(w, 0, 0, 3, ' ', tabwriter.AlignRight)
-		fmt.Fprintf(writer, "ANNOTATION\tCOUNT\tTRANSLATABLE\tREQUIRES EXTENSION\tNO EQUIVALENT\n")
-		fmt.Fprintf(writer, "----------\t-----\t------------\t------------------\t-------------\n")
+		_, _ = fmt.Fprintf(writer, "ANNOTATION\tCOUNT\tTRANSLATABLE\tREQUIRES EXTENSION\tNO EQUIVALENT\n")
+		_, _ = fmt.Fprintf(writer, "----------\t-----\t------------\t------------------\t-------------\n")
 
 		for _, class := range r.AnnotationClasses {
 			translatable := "No"
@@ -77,22 +109,22 @@ func (r *AnalysisReport) PrintTable(w io.Writer) {
 				noEquivalent = "Yes"
 			}
 
-			fmt.Fprintf(writer, "%s\t%d\t%s\t%s\t%s\n",
+			_, _ = fmt.Fprintf(writer, "%s\t%d\t%s\t%s\t%s\n",
 				class.Name,
 				class.Count,
 				translatable,
 				requiresExtension,
 				noEquivalent)
 		}
-		writer.Flush()
-		fmt.Fprintf(w, "\n")
+		_ = writer.Flush()
+		_, _ = fmt.Fprintf(w, "\n")
 	} else {
-		fmt.Fprintf(w, "No annotation classes found.\n\n")
+		_, _ = fmt.Fprintf(w, "No annotation classes found.\n\n")
 	}
 
 	// Detailed annotation information
 	if len(r.AnnotationClasses) > 0 {
-		fmt.Fprintf(w, "Detailed Annotation Usage:\n")
+		_, _ = fmt.Fprintf(w, "Detailed Annotation Usage:\n")
 
 		// Sort annotation classes by count (descending)
 		sort.Slice(r.AnnotationClasses, func(i, j int) bool {
@@ -101,20 +133,20 @@ func (r *AnalysisReport) PrintTable(w io.Writer) {
 
 		for _, class := range r.AnnotationClasses {
 			if len(class.Annotations) > 0 {
-				fmt.Fprintf(w, "\n  %s (%d occurrences):\n", class.Name, class.Count)
-				fmt.Fprintf(w, "    Description: %s\n", class.Description)
+				_, _ = fmt.Fprintf(w, "\n  %s (%d occurrences):\n", class.Name, class.Count)
+				_, _ = fmt.Fprintf(w, "    Description: %s\n", class.Description)
 
 				if class.IsTranslatable {
-					fmt.Fprintf(w, "    Translatable: Yes\n")
+					_, _ = fmt.Fprintf(w, "    Translatable: Yes\n")
 				} else if class.RequiresExtension {
-					fmt.Fprintf(w, "    Requires Extension: Yes\n")
+					_, _ = fmt.Fprintf(w, "    Requires Extension: Yes\n")
 				} else if class.NoEquivalent {
-					fmt.Fprintf(w, "    No Gateway API Equivalent: Yes\n")
+					_, _ = fmt.Fprintf(w, "    No Gateway API Equivalent: Yes\n")
 				}
 
-				fmt.Fprintf(w, "    Sample Usage:\n")
+				_, _ = fmt.Fprintf(w, "    Sample Usage:\n")
 				for _, ann := range class.Annotations {
-					fmt.Fprintf(w, "      %s/%s: %s = %s\n",
+					_, _ = fmt.Fprintf(w, "      %s/%s: %s = %s\n",
 						ann.Namespace,
 						ann.Resource,
 						ann.Name,
@@ -127,32 +159,32 @@ func (r *AnalysisReport) PrintTable(w io.Writer) {
 
 // PrintDetailedReport prints a more detailed report
 func (r *AnalysisReport) PrintDetailedReport(w io.Writer) {
-	fmt.Fprintf(w, "Ingress Shift Detailed Analysis Report\n")
-	fmt.Fprintf(w, "======================================\n\n")
+	_, _ = fmt.Fprintf(w, "Ingress Shift Detailed Analysis Report\n")
+	_, _ = fmt.Fprintf(w, "======================================\n\n")
 
 	// Overall summary
-	fmt.Fprintf(w, "Overall Summary:\n")
-	fmt.Fprintf(w, "  Total Ingress Resources: %d\n", r.TotalIngresses)
-	fmt.Fprintf(w, "  Complexity Score: %.1f%%\n", r.ComplexityScore)
-	fmt.Fprintf(w, "\n")
+	_, _ = fmt.Fprintf(w, "Overall Summary:\n")
+	_, _ = fmt.Fprintf(w, "  Total Ingress Resources: %d\n", r.TotalIngresses)
+	_, _ = fmt.Fprintf(w, "  Complexity Score: %.1f%%\n", r.ComplexityScore)
+	_, _ = fmt.Fprintf(w, "\n")
 
 	// Recommendation section
-	fmt.Fprintf(w, "Recommendations:\n")
+	_, _ = fmt.Fprintf(w, "Recommendations:\n")
 	for _, rec := range r.Recommendations {
-		fmt.Fprintf(w, "  - %s\n", rec)
+		_, _ = fmt.Fprintf(w, "  - %s\n", rec)
 	}
-	fmt.Fprintf(w, "\n")
+	_, _ = fmt.Fprintf(w, "\n")
 
 	// Annotation class summary
-	fmt.Fprintf(w, "Annotation Classes Summary:\n")
-	fmt.Fprintf(w, "  Translatable: %d\n", r.Translatable)
-	fmt.Fprintf(w, "  Requires Manual Intervention: %d\n", r.NeedsManualIntervention)
-	fmt.Fprintf(w, "  No Gateway API Equivalent: %d\n", r.NoEquivalent)
-	fmt.Fprintf(w, "\n")
+	_, _ = fmt.Fprintf(w, "Annotation Classes Summary:\n")
+	_, _ = fmt.Fprintf(w, "  Translatable: %d\n", r.Translatable)
+	_, _ = fmt.Fprintf(w, "  Requires Manual Intervention: %d\n", r.NeedsManualIntervention)
+	_, _ = fmt.Fprintf(w, "  No Gateway API Equivalent: %d\n", r.NoEquivalent)
+	_, _ = fmt.Fprintf(w, "\n")
 
 	// Detailed breakdown of annotation classes
 	if len(r.AnnotationClasses) > 0 {
-		fmt.Fprintf(w, "Detailed Annotation Classes:\n")
+		_, _ = fmt.Fprintf(w, "Detailed Annotation Classes:\n")
 
 		// Sort by count descending
 		sort.Slice(r.AnnotationClasses, func(i, j int) bool {
@@ -161,25 +193,25 @@ func (r *AnalysisReport) PrintDetailedReport(w io.Writer) {
 
 		for i, class := range r.AnnotationClasses {
 			if i > 0 {
-				fmt.Fprintf(w, "\n")
+				_, _ = fmt.Fprintf(w, "\n")
 			}
 
-			fmt.Fprintf(w, "  %s\n", class.Name)
-			fmt.Fprintf(w, "    Description: %s\n", class.Description)
-			fmt.Fprintf(w, "    Count: %d\n", class.Count)
+			_, _ = fmt.Fprintf(w, "  %s\n", class.Name)
+			_, _ = fmt.Fprintf(w, "    Description: %s\n", class.Description)
+			_, _ = fmt.Fprintf(w, "    Count: %d\n", class.Count)
 
 			if class.IsTranslatable {
-				fmt.Fprintf(w, "    Translatable: Yes\n")
+				_, _ = fmt.Fprintf(w, "    Translatable: Yes\n")
 			} else if class.RequiresExtension {
-				fmt.Fprintf(w, "    Requires Extension: Yes\n")
+				_, _ = fmt.Fprintf(w, "    Requires Extension: Yes\n")
 			} else if class.NoEquivalent {
-				fmt.Fprintf(w, "    No Gateway API Equivalent: Yes\n")
+				_, _ = fmt.Fprintf(w, "    No Gateway API Equivalent: Yes\n")
 			}
 
 			if len(class.Annotations) > 0 {
-				fmt.Fprintf(w, "    Sample Usage:\n")
+				_, _ = fmt.Fprintf(w, "    Sample Usage:\n")
 				for _, ann := range class.Annotations {
-					fmt.Fprintf(w, "      %s/%s: %s = %s\n",
+					_, _ = fmt.Fprintf(w, "      %s/%s: %s = %s\n",
 						ann.Namespace,
 						ann.Resource,
 						ann.Name,
@@ -188,35 +220,35 @@ func (r *AnalysisReport) PrintDetailedReport(w io.Writer) {
 			}
 		}
 	} else {
-		fmt.Fprintf(w, "No annotation classes found.\n")
+		_, _ = fmt.Fprintf(w, "No annotation classes found.\n")
 	}
 }
 
 // PrintSimpleReport prints a simple, concise report
 func (r *AnalysisReport) PrintSimpleReport(w io.Writer) {
-	fmt.Fprintf(w, "Ingress Shift Analysis Report\n")
-	fmt.Fprintf(w, "=============================\n")
-	fmt.Fprintf(w, "Total Ingress Resources: %d\n", r.TotalIngresses)
-	fmt.Fprintf(w, "Complexity Score: %.1f%%\n", r.ComplexityScore)
-	fmt.Fprintf(w, "\n")
+	_, _ = fmt.Fprintf(w, "Ingress Shift Analysis Report\n")
+	_, _ = fmt.Fprintf(w, "=============================\n")
+	_, _ = fmt.Fprintf(w, "Total Ingress Resources: %d\n", r.TotalIngresses)
+	_, _ = fmt.Fprintf(w, "Complexity Score: %.1f%%\n", r.ComplexityScore)
+	_, _ = fmt.Fprintf(w, "\n")
 
 	if len(r.Recommendations) > 0 {
-		fmt.Fprintf(w, "Recommendations:\n")
+		_, _ = fmt.Fprintf(w, "Recommendations:\n")
 		for _, rec := range r.Recommendations {
-			fmt.Fprintf(w, "  - %s\n", rec)
+			_, _ = fmt.Fprintf(w, "  - %s\n", rec)
 		}
-		fmt.Fprintf(w, "\n")
+		_, _ = fmt.Fprintf(w, "\n")
 	}
 
 	if r.TotalIngresses > 0 {
-		fmt.Fprintf(w, "Annotation Usage Summary:\n")
-		fmt.Fprintf(w, "  Translatable: %d (%.1f%%)\n",
+		_, _ = fmt.Fprintf(w, "Annotation Usage Summary:\n")
+		_, _ = fmt.Fprintf(w, "  Translatable: %d (%.1f%%)\n",
 			r.Translatable,
 			float64(r.Translatable)/float64(r.TotalIngresses)*100)
-		fmt.Fprintf(w, "  Requires Manual Intervention: %d (%.1f%%)\n",
+		_, _ = fmt.Fprintf(w, "  Requires Manual Intervention: %d (%.1f%%)\n",
 			r.NeedsManualIntervention,
 			float64(r.NeedsManualIntervention)/float64(r.TotalIngresses)*100)
-		fmt.Fprintf(w, "  No Gateway API Equivalent: %d (%.1f%%)\n",
+		_, _ = fmt.Fprintf(w, "  No Gateway API Equivalent: %d (%.1f%%)\n",
 			r.NoEquivalent,
 			float64(r.NoEquivalent)/float64(r.TotalIngresses)*100)
 	}

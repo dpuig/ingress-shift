@@ -3,11 +3,13 @@ package pkg
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 // KubernetesClient wraps the kubernetes client for easier testing
@@ -53,6 +55,61 @@ func (c *KubernetesClient) listIngressesInAllNamespaces(ctx context.Context) ([]
 	}
 
 	return objects, nil
+}
+
+// LoadContextConfigs resolves a rest.Config per kubeconfig context so the
+// analyzer can enumerate Ingress resources "across all contexts" as required
+// by PLAN.md, not just the current one. If kubeconfigPath is empty (no
+// kubeconfig file present), it falls back to in-cluster config as a single
+// pseudo-context named "in-cluster". If only is non-empty, it restricts the
+// result to those context names instead of every context in the file.
+func LoadContextConfigs(kubeconfigPath string, only []string) (map[string]*rest.Config, error) {
+	if kubeconfigPath == "" {
+		cfg, err := rest.InClusterConfig()
+		if err != nil {
+			return nil, fmt.Errorf("no kubeconfig file found and not running in-cluster: %w", err)
+		}
+		return map[string]*rest.Config{"in-cluster": cfg}, nil
+	}
+
+	rawConfig, err := clientcmd.LoadFromFile(kubeconfigPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load kubeconfig %s: %w", kubeconfigPath, err)
+	}
+
+	names := only
+	if len(names) == 0 {
+		for name := range rawConfig.Contexts {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+
+	if len(names) == 0 {
+		return nil, fmt.Errorf("kubeconfig %s defines no contexts", kubeconfigPath)
+	}
+
+	configs := make(map[string]*rest.Config, len(names))
+	for _, name := range names {
+		if _, ok := rawConfig.Contexts[name]; !ok {
+			return nil, fmt.Errorf("context %q not found in kubeconfig %s", name, kubeconfigPath)
+		}
+
+		clientConfig := clientcmd.NewNonInteractiveClientConfig(
+			*rawConfig,
+			name,
+			&clientcmd.ConfigOverrides{CurrentContext: name},
+			clientcmd.NewDefaultClientConfigLoadingRules(),
+		)
+
+		restConfig, err := clientConfig.ClientConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build client config for context %q: %w", name, err)
+		}
+		configs[name] = restConfig
+	}
+
+	return configs, nil
 }
 
 // toPartialObjectMetadata extracts the metadata analysis needs (name, namespace, annotations)

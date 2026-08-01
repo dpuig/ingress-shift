@@ -1,0 +1,129 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  id-token: write # required for cosign keyless (OIDC) signing
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+        exclude:
+          - goos: windows
+            goarch: arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+
+      - name: Test
+        run: go test ./...
+
+      - name: Build analyzer binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          set -euo pipefail
+          ext=""
+          if [ "${{ matrix.goos }}" = "windows" ]; then ext=".exe"; fi
+          mkdir -p dist
+          go build -trimpath -ldflags "-s -w -X main.Version=${GITHUB_REF_NAME}" \
+            -o "dist/ingress-shift-analyzer-${{ matrix.goos }}-${{ matrix.goarch }}${ext}" \
+            ./src/analyzer
+
+      - name: Package archive
+        run: |
+          set -euo pipefail
+          cd dist
+          f="ingress-shift-analyzer-${{ matrix.goos }}-${{ matrix.goarch }}"
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            zip "$f.zip" "$f.exe"
+          else
+            tar -czf "$f.tar.gz" "$f"
+          fi
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: analyzer-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: |
+            dist/*.tar.gz
+            dist/*.zip
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+          cache: true
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum *.tar.gz *.zip > checksums.txt
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign artifacts (keyless, via GitHub OIDC)
+        run: |
+          set -euo pipefail
+          cd dist
+          for f in *.tar.gz *.zip; do
+            cosign sign-blob --yes "$f" --output-signature "$f.sig" --output-certificate "$f.pem"
+          done
+
+      - name: Update krew.yaml for this release
+        run: go run ./tools/krew-manifest "${GITHUB_REF_NAME}" dist krew.yaml
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/*.sig
+            dist/*.pem
+            dist/checksums.txt
+          generate_release_notes: true
+
+      - name: Commit updated krew.yaml
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add krew.yaml
+          git diff --cached --quiet || git commit -m "chore: update krew.yaml for ${GITHUB_REF_NAME}"
+          git push origin HEAD:main

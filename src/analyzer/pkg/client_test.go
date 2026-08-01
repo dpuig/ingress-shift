@@ -2,11 +2,14 @@ package pkg
 
 import (
 	"context"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	"github.com/dpuig/ingress-shift/src/analyzer/pkg/knowledgebase"
 )
 
 // MockKubernetesClient is a mock implementation of KubernetesClientInterface for testing
@@ -56,6 +59,8 @@ func TestAnalyzeIngressResources(t *testing.T) {
 		assert.Equal(t, 0, report.Translatable)
 		assert.Equal(t, 0, report.NeedsManualIntervention)
 		assert.Equal(t, 1, report.NoEquivalent)
+		assert.Len(t, report.ManualInterventions, 1)
+		assert.Equal(t, "high", report.ManualInterventions[0].Effort)
 	})
 
 	// Create a mock Kubernetes client with test data
@@ -66,8 +71,8 @@ func TestAnalyzeIngressResources(t *testing.T) {
 					Name:      "test-ingress-1",
 					Namespace: "default",
 					Annotations: map[string]string{
-						"nginx.ingress.kubernetes.io/rewrite-target": "/",
-						"nginx.ingress.kubernetes.io/ssl-redirect":   "true",
+						"nginx.ingress.kubernetes.io/ssl-redirect": "true",
+						"nginx.ingress.kubernetes.io/app-root":     "/app",
 					},
 				},
 			},
@@ -90,9 +95,10 @@ func TestAnalyzeIngressResources(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, report)
 	assert.Equal(t, 2, report.TotalIngresses)
-	assert.Equal(t, 2, report.Translatable)            // rewrite-target and ssl-redirect are translatable
-	assert.Equal(t, 2, report.NeedsManualIntervention) // configuration-snippet and limit-rps require intervention
-	assert.Equal(t, 0, report.NoEquivalent)
+	assert.Equal(t, 2, report.Translatable)            // ssl-redirect and app-root are direct
+	assert.Equal(t, 1, report.NeedsManualIntervention) // limit-rps is "extension"
+	assert.Equal(t, 1, report.NoEquivalent)            // configuration-snippet is "none"
+	assert.Equal(t, 50.0, report.PercentTranslatable)
 
 	// Verify that we have the expected annotation classes in the report
 	annotationClassNames := make(map[string]bool)
@@ -100,63 +106,79 @@ func TestAnalyzeIngressResources(t *testing.T) {
 		annotationClassNames[class.Name] = true
 	}
 
-	assert.True(t, annotationClassNames["nginx.ingress.kubernetes.io/rewrite-target"])
 	assert.True(t, annotationClassNames["nginx.ingress.kubernetes.io/ssl-redirect"])
+	assert.True(t, annotationClassNames["nginx.ingress.kubernetes.io/app-root"])
 	assert.True(t, annotationClassNames["nginx.ingress.kubernetes.io/configuration-snippet"])
 	assert.True(t, annotationClassNames["nginx.ingress.kubernetes.io/limit-rps"])
 
 	// Verify complexity score
 	assert.Greater(t, report.ComplexityScore, float64(0))
+	assert.NotNil(t, report.ControllerRecommendation)
 }
 
-func TestGetAnnotationClass(t *testing.T) {
-	// Test known annotations
-	class := getAnnotationClass("nginx.ingress.kubernetes.io/rewrite-target")
-	assert.Equal(t, "nginx.ingress.kubernetes.io/rewrite-target", class.Name)
-	assert.Equal(t, "Rewrite target for URL rewriting", class.Description)
-	assert.True(t, class.IsTranslatable)
-	assert.False(t, class.RequiresExtension)
-	assert.False(t, class.NoEquivalent)
+func TestKnowledgeBaseLookup(t *testing.T) {
+	entry, ok := knowledgebase.Lookup("nginx.ingress.kubernetes.io/app-root")
+	assert.True(t, ok)
+	assert.Equal(t, "nginx.ingress.kubernetes.io/app-root", entry.Name)
+	assert.True(t, entry.IsTranslatable())
 
-	class = getAnnotationClass("nginx.ingress.kubernetes.io/limit-rps")
-	assert.Equal(t, "nginx.ingress.kubernetes.io/limit-rps", class.Name)
-	assert.Equal(t, "Rate limiting per second", class.Description)
-	assert.False(t, class.IsTranslatable)
-	assert.True(t, class.RequiresExtension)
-	assert.False(t, class.NoEquivalent)
+	entry, ok = knowledgebase.Lookup("nginx.ingress.kubernetes.io/limit-rps")
+	assert.True(t, ok)
+	assert.True(t, entry.RequiresExtension())
+	assert.True(t, entry.BreaksNaiveTranslation)
 
-	// Test unknown annotation
-	class = getAnnotationClass("unknown.annotation.test")
-	assert.Equal(t, "unknown.annotation.test", class.Name)
-	assert.Equal(t, "Unknown annotation", class.Description)
-	assert.False(t, class.IsTranslatable)
-	assert.False(t, class.RequiresExtension)
-	assert.True(t, class.NoEquivalent)
+	entry = knowledgebase.Unknown("unknown.annotation.test")
+	assert.Equal(t, "unknown.annotation.test", entry.Name)
+	assert.True(t, entry.NoEquivalent())
 }
 
-func TestAddAnnotationClass(t *testing.T) {
-	report := &AnalysisReport{
-		TotalIngresses:          0,
-		Translatable:            0,
-		NeedsManualIntervention: 0,
-		NoEquivalent:            0,
-		AnnotationClasses:       make([]AnnotationClass, 0),
+func TestMergeReports(t *testing.T) {
+	ctxAClient := &MockKubernetesClient{
+		ingressList: []runtime.Object{
+			&metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "a-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.ingress.kubernetes.io/ssl-redirect": "true",
+					},
+				},
+			},
+		},
+	}
+	ctxBClient := &MockKubernetesClient{
+		ingressList: []runtime.Object{
+			&metav1.PartialObjectMetadata{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "b-ingress",
+					Namespace: "default",
+					Annotations: map[string]string{
+						"nginx.ingress.kubernetes.io/ssl-redirect": "true",
+					},
+				},
+			},
+		},
 	}
 
-	// Add a new annotation class
-	report.addAnnotationClass("test.annotation", "Test annotation description", true, false, false)
-	assert.Equal(t, 1, len(report.AnnotationClasses))
-	assert.Equal(t, 1, report.Translatable)
+	ctx := context.Background()
+	reportA, err := AnalyzeIngressResources(ctx, ctxAClient, "", false)
+	assert.NoError(t, err)
+	reportB, err := AnalyzeIngressResources(ctx, ctxBClient, "", false)
+	assert.NoError(t, err)
 
-	// Add the same annotation class again (should increment count)
-	report.addAnnotationClass("test.annotation", "Test annotation description", true, false, false)
-	assert.Equal(t, 1, len(report.AnnotationClasses))
-	assert.Equal(t, 2, report.AnnotationClasses[0].Count)
+	merged := MergeReports(map[string]*AnalysisReport{
+		"cluster-a": reportA,
+		"cluster-b": reportB,
+	})
+
+	assert.Equal(t, 2, merged.TotalIngresses)
+	assert.Len(t, merged.Contexts, 2)
+	assert.Len(t, merged.AnnotationClasses, 1)
+	assert.Equal(t, 2, merged.AnnotationClasses[0].Count)
 }
 
 func TestCalculateComplexityScore(t *testing.T) {
 	report := &AnalysisReport{
-		TotalIngresses:          10,
 		Translatable:            5,
 		NeedsManualIntervention: 3,
 		NoEquivalent:            2,
@@ -179,12 +201,6 @@ func TestAddRecommendations(t *testing.T) {
 	assert.NotNil(t, report.Recommendations)
 	assert.Greater(t, len(report.Recommendations), 0)
 
-	// Check that recommendations are added based on complexity
-	for _, rec := range report.Recommendations {
-		if rec == "Moderate migration complexity. Plan for some manual interventions and controller extensions." {
-			assert.True(t, true) // Found expected recommendation
-			return
-		}
-	}
-	assert.Fail(t, "Expected recommendation not found")
+	found := slices.Contains(report.Recommendations, "Moderate migration complexity. Plan for some manual interventions and controller extensions.")
+	assert.True(t, found, "expected recommendation not found")
 }

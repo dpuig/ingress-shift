@@ -1,31 +1,50 @@
+# This file is regenerated automatically by tools/krew-manifest on every
+# tagged release (see .github/workflows/release.yml) — do not hand-edit the
+# version/uri/sha256 fields, they will be overwritten. Until the first real
+# release ships, the values below are placeholders and this plugin is NOT
+# yet installable via `kubectl krew install`.
 ---
 apiVersion: krew.googlecontainertools.github.com/v1alpha2
 kind: Plugin
 metadata:
   name: ingress-shift-analyzer
 spec:
-  version: "v0.1.0"
+  version: "v0.0.0-unreleased"
   platforms:
   - selector:
       matchLabels:
         os: linux
         arch: amd64
-    uri: https://github.com/duhostack/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-linux-amd64.tar.gz
-    sha256: b3a8b8f7d9e1c2d3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7
+    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-linux-amd64.tar.gz
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    bin: ingress-shift-analyzer
+  - selector:
+      matchLabels:
+        os: linux
+        arch: arm64
+    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-linux-arm64.tar.gz
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
     bin: ingress-shift-analyzer
   - selector:
       matchLabels:
         os: darwin
         arch: amd64
-    uri: https://github.com/duhostack/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-darwin-amd64.tar.gz
-    sha256: c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5
+    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-darwin-amd64.tar.gz
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    bin: ingress-shift-analyzer
+  - selector:
+      matchLabels:
+        os: darwin
+        arch: arm64
+    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-darwin-arm64.tar.gz
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
     bin: ingress-shift-analyzer
   - selector:
       matchLabels:
         os: windows
         arch: amd64
-    uri: https://github.com/duhostack/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-windows-amd64.zip
-    sha256: d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6
+    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-windows-amd64.zip
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
     bin: ingress-shift-analyzer.exe
   shortDescription: "Ingress Shift Analyzer - Analyze Ingress resources for Gateway API migration"
   description: |
@@ -37,7 +56,7 @@ spec:
     flags classes that break naive translation, and emits a scored report
     with percentage translatable, list of manual interventions with effort estimate,
     and recommendation for target controller.
-  homepage: https://github.com/duhostack/ingress-shift
+  homepage: https://github.com/dpuig/ingress-shift
   links:
   - text: Documentation
-    url: https://github.com/duhostack/ingress-shift/blob/main/README.md
+    url: https://github.com/dpuig/ingress-shift/blob/main/README.md

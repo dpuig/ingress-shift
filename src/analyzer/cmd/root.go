@@ -7,14 +7,13 @@ import (
 	"path/filepath"
 
 	"github.com/spf13/cobra"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
 
-	"ingress-shift-analyzer/src/analyzer/pkg"
+	"github.com/dpuig/ingress-shift/src/analyzer/pkg"
 )
 
 var (
 	kubeConfigPath string
+	contextNames   []string
 	allNamespaces  bool
 	outputFormat   string
 	verbose        bool
@@ -39,6 +38,7 @@ and recommendation for target controller.`,
 
 	// Add flags
 	cmd.Flags().StringVar(&kubeConfigPath, "kubeconfig", "", "Path to kubeconfig file")
+	cmd.Flags().StringSliceVar(&contextNames, "context", nil, "Kubeconfig context(s) to analyze (default: all contexts in the kubeconfig)")
 	cmd.Flags().BoolVarP(&allNamespaces, "all-namespaces", "A", false, "Analyze all namespaces")
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "table", "Output format (table, json, yaml)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Enable verbose output")
@@ -52,24 +52,37 @@ and recommendation for target controller.`,
 func runRootCmd(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Create Kubernetes client
-	kubeClient, err := createKubernetesClient()
+	configPath := resolveKubeConfigPath(kubeConfigPath)
+
+	restConfigs, err := pkg.LoadContextConfigs(configPath, contextNames)
 	if err != nil {
-		return fmt.Errorf("failed to create kubernetes client: %w", err)
+		return fmt.Errorf("failed to load kubeconfig contexts: %w", err)
 	}
 
-	// Analyze ingress resources
 	var namespace string
-	if allNamespaces {
-		namespace = ""
-	} else {
+	if !allNamespaces {
 		namespace = "default"
 	}
 
-	report, err := pkg.AnalyzeIngressResources(ctx, kubeClient, namespace, verbose)
-	if err != nil {
-		return fmt.Errorf("failed to analyze ingress resources: %w", err)
+	perContext := make(map[string]*pkg.AnalysisReport, len(restConfigs))
+	for name, restConfig := range restConfigs {
+		client, err := pkg.NewKubernetesClient(restConfig)
+		if err != nil {
+			return fmt.Errorf("failed to create kubernetes client for context %q: %w", name, err)
+		}
+
+		if verbose {
+			fmt.Fprintf(os.Stderr, "Analyzing context %q...\n", name)
+		}
+
+		report, err := pkg.AnalyzeIngressResources(ctx, client, namespace, verbose)
+		if err != nil {
+			return fmt.Errorf("failed to analyze ingress resources in context %q: %w", name, err)
+		}
+		perContext[name] = report
 	}
+
+	report := pkg.MergeReports(perContext)
 
 	// Output based on format
 	switch outputFormat {
@@ -89,36 +102,25 @@ func runRootCmd(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// createKubernetesClient creates a Kubernetes client from the kubeconfig
-func createKubernetesClient() (*pkg.KubernetesClient, error) {
-	// Get the kubeconfig path
-	configPath := kubeConfigPath
-	if configPath == "" {
-		// Try to get default kubeconfig path
-		if homeDir, err := os.UserHomeDir(); err == nil {
-			configPath = filepath.Join(homeDir, ".kube", "config")
-		}
+// resolveKubeConfigPath returns the explicit path if set, otherwise the
+// default ~/.kube/config location if it exists, otherwise an empty string
+// (signaling in-cluster config to LoadContextConfigs).
+func resolveKubeConfigPath(explicit string) string {
+	if explicit != "" {
+		return explicit
 	}
 
-	var config *rest.Config
-	var err error
-
-	// Try to load from kubeconfig file first
-	if configPath != "" && fileExists(configPath) {
-		config, err = clientcmd.NewNonInteractiveDeferredLoadingClientConfig(
-			&clientcmd.ClientConfigLoadingRules{ExplicitPath: configPath},
-			&clientcmd.ConfigOverrides{},
-		).ClientConfig()
-	} else {
-		// Try to load in-cluster config
-		config, err = rest.InClusterConfig()
-	}
-
+	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		return nil, fmt.Errorf("failed to create kubernetes config: %w", err)
+		return ""
 	}
 
-	return pkg.NewKubernetesClient(config)
+	defaultPath := filepath.Join(homeDir, ".kube", "config")
+	if fileExists(defaultPath) {
+		return defaultPath
+	}
+
+	return ""
 }
 
 // fileExists checks if a file exists

@@ -1,0 +1,469 @@
+# Ingress Shift annotation knowledge base
+#
+# Versioned independently of the analyzer binary (see PLAN.md Workstream A).
+# Every entry is covered by the schema test in knowledgebase_test.go.
+#
+# classification:
+#   direct    - a core Gateway API field/filter covers this with no extension needed
+#   extension - needs an implementation-specific policy CRD (Envoy Gateway, Istio, etc.)
+#   none      - no Gateway API equivalent exists; manual redesign required
+#
+# breaks_naive_translation: true for the classes PLAN.md calls out explicitly as
+# breaking naive/automated translation: auth snippets, custom NGINX config blocks,
+# rewrite semantics, session affinity, rate limiting, mTLS passthrough.
+
+- name: nginx.ingress.kubernetes.io/auth-type
+  description: Authentication type (basic, digest, etc.)
+  category: auth
+  classification: extension
+  gateway_api_note: No core auth filter; maps to an implementation-specific SecurityPolicy/AuthPolicy CRD.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/auth-secret
+  description: Secret containing basic auth credentials
+  category: auth
+  classification: extension
+  gateway_api_note: Attach via the same SecurityPolicy/AuthPolicy CRD as auth-type; secret format is controller-specific.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/auth-secret-type
+  description: Format of the auth secret (auth-file vs auth-map)
+  category: auth
+  classification: extension
+  gateway_api_note: Controller-specific secret parsing; no core equivalent.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/auth-realm
+  description: Basic auth realm string shown to clients
+  category: auth
+  classification: extension
+  gateway_api_note: Passed through to the same auth policy CRD as auth-type where supported.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/auth-url
+  description: External auth subrequest URL (forward-auth pattern)
+  category: auth
+  classification: extension
+  gateway_api_note: Maps to an ext-authz style SecurityPolicy in most Gateway API implementations.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/auth-signin
+  description: Redirect URL when external auth fails
+  category: auth
+  classification: extension
+  gateway_api_note: Configured alongside the ext-authz policy; field name varies by controller.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/auth-snippet
+  description: Raw NGINX config injected into the auth flow
+  category: auth
+  classification: none
+  gateway_api_note: Arbitrary NGINX directives have no Gateway API concept; the auth logic must be re-implemented against the target controller's policy model.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/auth-cache-key
+  description: Cache key for external auth responses
+  category: auth
+  classification: extension
+  gateway_api_note: Only meaningful if the target ext-authz policy supports response caching.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/auth-tls-secret
+  description: CA bundle used to verify client certificates (mTLS)
+  category: mtls
+  classification: extension
+  gateway_api_note: Maps to a BackendTLSPolicy/ClientTLSPolicy CRD; exact shape is implementation-specific.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/auth-tls-verify-client
+  description: Client certificate verification mode (on/optional/off)
+  category: mtls
+  classification: extension
+  gateway_api_note: Verification mode field on the same ClientTLSPolicy CRD.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/auth-tls-verify-depth
+  description: Max verification depth for the client certificate chain
+  category: mtls
+  classification: extension
+  gateway_api_note: Chain depth field on the same ClientTLSPolicy CRD, where supported.
+  effort: medium
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/auth-tls-pass-certificate-to-upstream
+  description: Forward the client cert to the upstream service as a header
+  category: mtls
+  classification: none
+  gateway_api_note: No standard mechanism; requires a custom filter or upstream-side change.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/rewrite-target
+  description: Rewrite the request path before proxying, including regex capture groups
+  category: rewrite
+  classification: extension
+  gateway_api_note: Core HTTPRoute URLRewrite only supports prefix replacement, not regex capture groups — naive 1:1 translation silently drops capture-group behavior and needs manual verification per route.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/use-regex
+  description: Treat the Ingress path as a regular expression
+  category: rewrite
+  classification: extension
+  gateway_api_note: Core HTTPRouteMatch path types are Exact/PathPrefix/RegularExpression (implementation support for RegularExpression varies); pairs with rewrite-target's capture-group gap.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/app-root
+  description: Redirect the bare root path to a fixed application path
+  category: rewrite
+  classification: direct
+  gateway_api_note: Maps cleanly to an HTTPRoute RequestRedirect filter on the root path match.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/ssl-redirect
+  description: Redirect HTTP to HTTPS
+  category: tls
+  classification: direct
+  gateway_api_note: Maps to an HTTPRoute RequestRedirect filter with scheme https.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/force-ssl-redirect
+  description: Force HTTPS redirect even without a TLS block on the Ingress
+  category: tls
+  classification: direct
+  gateway_api_note: Same RequestRedirect filter as ssl-redirect; the "force" semantics collapse once TLS is modeled at the Gateway listener level.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/ssl-passthrough
+  description: Pass TLS through to the backend without terminating at the proxy
+  category: tls
+  classification: extension
+  gateway_api_note: Requires a TLSRoute plus a Gateway listener in Passthrough TLS mode — a structural change, not a like-for-like annotation, and the plan calls this out as a naive-translation break alongside mTLS passthrough.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/ssl-ciphers
+  description: Custom TLS cipher list
+  category: tls
+  classification: extension
+  gateway_api_note: Cipher configuration lives on the Gateway listener or an implementation-specific TLSPolicy, not the route.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/backend-protocol
+  description: Protocol used to talk to the backend (HTTP, HTTPS, GRPC, ...)
+  category: backend
+  classification: direct
+  gateway_api_note: Maps to BackendRef appProtocol, or a dedicated GRPCRoute for GRPC backends.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/configuration-snippet
+  description: Raw NGINX config injected into the location block
+  category: snippet
+  classification: none
+  gateway_api_note: Arbitrary NGINX directives have no Gateway API representation; each snippet needs manual re-implementation as policy or a custom filter.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/server-snippet
+  description: Raw NGINX config injected into the server block
+  category: snippet
+  classification: none
+  gateway_api_note: Same as configuration-snippet but server-scoped; no equivalent.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/stream-snippet
+  description: Raw NGINX config injected into the stream block (L4)
+  category: snippet
+  classification: none
+  gateway_api_note: L4 stream config has no HTTPRoute equivalent; would need a TCPRoute/UDPRoute plus controller-specific config.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/modsecurity-snippet
+  description: Raw ModSecurity WAF rules
+  category: snippet
+  classification: none
+  gateway_api_note: WAF rule injection has no Gateway API concept; requires a dedicated WAF integration on the target controller.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/affinity
+  description: Enable session affinity (cookie-based)
+  category: affinity
+  classification: extension
+  gateway_api_note: Session persistence is implementation-specific (e.g., BackendTrafficPolicy.sessionPersistence in Envoy Gateway); no core HTTPRoute field.
+  effort: medium
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/affinity-mode
+  description: Affinity mode (balanced vs persistent)
+  category: affinity
+  classification: extension
+  gateway_api_note: Field on the same session-persistence policy as affinity.
+  effort: medium
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/session-cookie-name
+  description: Name of the session affinity cookie
+  category: affinity
+  classification: extension
+  gateway_api_note: Cookie name field on the target's session-persistence policy.
+  effort: low
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/session-cookie-secure
+  description: Mark the session affinity cookie as Secure
+  category: affinity
+  classification: extension
+  gateway_api_note: Cookie attribute on the same session-persistence policy.
+  effort: low
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/session-cookie-max-age
+  description: Max age of the session affinity cookie
+  category: affinity
+  classification: extension
+  gateway_api_note: Cookie attribute on the same session-persistence policy.
+  effort: low
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/session-cookie-path
+  description: Path scope of the session affinity cookie
+  category: affinity
+  classification: extension
+  gateway_api_note: Cookie attribute on the same session-persistence policy.
+  effort: low
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/upstream-hash-by
+  description: Consistent-hash load balancing key
+  category: load-balancing
+  classification: extension
+  gateway_api_note: Load-balancing policy is implementation-specific; no core HTTPRoute field for hash-based LB.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/load-balance
+  description: Load balancing algorithm (round robin, least conn, ip hash, ...)
+  category: load-balancing
+  classification: extension
+  gateway_api_note: Maps to an implementation-specific BackendTrafficPolicy/load-balancing CRD.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/limit-rps
+  description: Requests-per-second rate limit
+  category: rate-limit
+  classification: extension
+  gateway_api_note: Rate limiting has no core Gateway API field; maps to a controller-specific RateLimitPolicy (values rarely translate 1:1).
+  effort: medium
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/limit-rpm
+  description: Requests-per-minute rate limit
+  category: rate-limit
+  classification: extension
+  gateway_api_note: Same RateLimitPolicy family as limit-rps, different unit.
+  effort: medium
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/limit-connections
+  description: Concurrent connection limit per client IP
+  category: rate-limit
+  classification: extension
+  gateway_api_note: Connection limiting is implementation-specific; not all Gateway API controllers expose it.
+  effort: medium
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/limit-burst-multiplier
+  description: Burst allowance multiplier on top of the base rate limit
+  category: rate-limit
+  classification: extension
+  gateway_api_note: Burst tuning field on the target RateLimitPolicy, where supported.
+  effort: medium
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/limit-rate
+  description: Bandwidth limit per connection, in bytes/sec
+  category: rate-limit
+  classification: none
+  gateway_api_note: Per-connection bandwidth shaping has no common Gateway API equivalent.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/limit-rate-after
+  description: Byte offset after which limit-rate starts applying
+  category: rate-limit
+  classification: none
+  gateway_api_note: Depends on limit-rate, which has no equivalent.
+  effort: high
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/limit-whitelist
+  description: CIDR allowlist exempted from rate limiting
+  category: rate-limit
+  classification: extension
+  gateway_api_note: Allowlist field on the target RateLimitPolicy, where supported.
+  effort: medium
+  breaks_naive_translation: true
+
+- name: nginx.ingress.kubernetes.io/canary
+  description: Mark this Ingress as a canary variant of another
+  category: canary
+  classification: none
+  gateway_api_note: Not annotation-level in Gateway API — canary routing is expressed structurally via weighted backendRefs on a single HTTPRoute, so this toggle has no direct counterpart to migrate.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/canary-weight
+  description: Percentage of traffic sent to the canary backend
+  category: canary
+  classification: direct
+  gateway_api_note: Maps directly to HTTPRoute backendRefs[].weight — this is Gateway API's native canary/traffic-splitting mechanism.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/canary-by-header
+  description: Route to canary based on a request header's presence/value
+  category: canary
+  classification: direct
+  gateway_api_note: Maps to an HTTPRouteMatch on request headers routing to the canary backendRef.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/canary-by-cookie
+  description: Route to canary based on a cookie value
+  category: canary
+  classification: none
+  gateway_api_note: Core HTTPRouteMatch has no cookie match type; requires an implementation-specific extension filter.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/enable-cors
+  description: Enable CORS response headers
+  category: cors
+  classification: extension
+  gateway_api_note: CORS is an experimental-channel HTTPRoute filter in current Gateway API releases; treat as extension until it graduates to standard.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/cors-allow-origin
+  description: Allowed CORS origin(s)
+  category: cors
+  classification: extension
+  gateway_api_note: Field on the same CORS filter/policy as enable-cors.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/cors-allow-methods
+  description: Allowed CORS methods
+  category: cors
+  classification: extension
+  gateway_api_note: Field on the same CORS filter/policy as enable-cors.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/cors-allow-headers
+  description: Allowed CORS request headers
+  category: cors
+  classification: extension
+  gateway_api_note: Field on the same CORS filter/policy as enable-cors.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/cors-allow-credentials
+  description: Allow credentials in CORS responses
+  category: cors
+  classification: extension
+  gateway_api_note: Field on the same CORS filter/policy as enable-cors.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/proxy-body-size
+  description: Max allowed client request body size
+  category: proxy
+  classification: extension
+  gateway_api_note: Body size limits are implementation-specific policy, not a core HTTPRoute field.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/proxy-connect-timeout
+  description: Timeout for connecting to the upstream
+  category: proxy
+  classification: direct
+  gateway_api_note: Maps to HTTPRouteRule.timeouts (Gateway API v1+) or an equivalent BackendTrafficPolicy timeout field.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/proxy-read-timeout
+  description: Timeout for reading the upstream response
+  category: proxy
+  classification: direct
+  gateway_api_note: Maps to HTTPRouteRule.timeouts.backendRequest.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/proxy-send-timeout
+  description: Timeout for sending the request to the upstream
+  category: proxy
+  classification: direct
+  gateway_api_note: Maps to HTTPRouteRule.timeouts.backendRequest alongside proxy-read-timeout.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/proxy-buffering
+  description: Enable/disable response buffering
+  category: proxy
+  classification: extension
+  gateway_api_note: Buffering behavior is implementation-specific; no core field.
+  effort: medium
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/upstream-vhost
+  description: Override the Host header sent to the upstream
+  category: proxy
+  classification: direct
+  gateway_api_note: Maps to the hostname field on an HTTPRoute URLRewrite filter.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/permanent-redirect
+  description: Redirect target URL
+  category: redirect
+  classification: direct
+  gateway_api_note: Maps to an HTTPRoute RequestRedirect filter.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/permanent-redirect-code
+  description: HTTP status code used for the redirect
+  category: redirect
+  classification: direct
+  gateway_api_note: Maps to the statusCode field on the same RequestRedirect filter.
+  effort: low
+  breaks_naive_translation: false
+
+- name: nginx.ingress.kubernetes.io/temporal-redirect
+  description: Temporary (302) redirect target URL
+  category: redirect
+  classification: direct
+  gateway_api_note: Same RequestRedirect filter with statusCode 302.
+  effort: low
+  breaks_naive_translation: false

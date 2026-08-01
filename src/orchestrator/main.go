@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/dpuig/ingress-shift/src/analyzer/cmd"
+	"github.com/dpuig/ingress-shift/src/orchestrator/cmd"
 )
 
 // Version is set via -ldflags "-X main.Version=..." at build time.
