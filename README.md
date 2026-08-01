@@ -45,11 +45,7 @@ All three are Go, compile to a single static binary, run entirely on-premises, a
 ### 1. Annotation Coverage Analyzer
 
 ```bash
-# Once submitted to and accepted into the community krew-index:
-kubectl krew install ingress-shift-analyzer
-
-# Until then, install directly from this repo's own manifest (works the
-# same way — krew-index submission just adds discoverability):
+# Install directly from this repo's own manifest:
 kubectl krew install --manifest-url=https://raw.githubusercontent.com/dpuig/ingress-shift/main/krew.yaml
 
 # Or build from source
