@@ -1,22 +1,17 @@
-# This file is regenerated automatically by tools/krew-manifest on every
-# tagged release (see .github/workflows/release.yml) — do not hand-edit the
-# version/uri/sha256 fields, they will be overwritten. Until the first real
-# release ships, the values below are placeholders and this plugin is NOT
-# yet installable via `kubectl krew install`.
 ---
 apiVersion: krew.googlecontainertools.github.com/v1alpha2
 kind: Plugin
 metadata:
   name: ingress-shift-analyzer
 spec:
-  version: "v0.0.0-unreleased"
+  version: v0.1.0
   platforms:
   - selector:
       matchLabels:
         os: linux
         arch: amd64
-    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-linux-amd64.tar.gz
-    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-linux-amd64.tar.gz
+    sha256: 55cfa0a87fbf39f98dc722b74c3b15240750eedbbf465756c80c22498022ac24
     files:
     - from: LICENSE
       to: .
@@ -27,8 +22,8 @@ spec:
       matchLabels:
         os: linux
         arch: arm64
-    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-linux-arm64.tar.gz
-    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-linux-arm64.tar.gz
+    sha256: 7b67829a313d2afb5ce8844adaee9bba0ded0736b1b09d23e061fbdb718990f3
     files:
     - from: LICENSE
       to: .
@@ -39,8 +34,8 @@ spec:
       matchLabels:
         os: darwin
         arch: amd64
-    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-darwin-amd64.tar.gz
-    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-darwin-amd64.tar.gz
+    sha256: ea2801fd2a33267df7d1b8c7c3f76c52bed9e3eca648d343326c8280f307740d
     files:
     - from: LICENSE
       to: .
@@ -51,8 +46,8 @@ spec:
       matchLabels:
         os: darwin
         arch: arm64
-    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-darwin-arm64.tar.gz
-    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-darwin-arm64.tar.gz
+    sha256: 94a11dea826ab496ad22e59d30fe59224b9bc860993c9b927e8dbeee7ef934a7
     files:
     - from: LICENSE
       to: .
@@ -63,15 +58,16 @@ spec:
       matchLabels:
         os: windows
         arch: amd64
-    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.0.0-unreleased/ingress-shift-analyzer-windows-amd64.zip
-    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+    uri: https://github.com/dpuig/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-windows-amd64.zip
+    sha256: d469dba0770cebb2e2fa9db6434ef5318f2c3af3cd03b648dfcb7442a682cdf3
     files:
     - from: LICENSE
       to: .
     - from: ingress-shift-analyzer.exe
       to: .
     bin: ingress-shift-analyzer.exe
-  shortDescription: "Ingress Shift Analyzer - Analyze Ingress resources for Gateway API migration"
+  shortDescription: Ingress Shift Analyzer - Analyze Ingress resources for Gateway
+    API migration
   description: |
     Ingress Shift Analyzer is a kubectl plugin that analyzes Ingress resources
     and their annotations to determine migration complexity to Gateway API.
