@@ -11,7 +11,7 @@ spec:
         os: linux
         arch: amd64
     uri: https://github.com/dpuig/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-linux-amd64.tar.gz
-    sha256: b9bd470ae48a85737732b980f62e66944158d12cdcaa9876aae962a229bd92a2
+    sha256: 0e426bb192d0d635f85d6b98a063b89da75e2e1ce79d7674fd345c4539429ba6
     files:
     - from: LICENSE
       to: .
@@ -23,7 +23,7 @@ spec:
         os: linux
         arch: arm64
     uri: https://github.com/dpuig/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-linux-arm64.tar.gz
-    sha256: 7c039e77e64ac98ecc9113a766bbd39ff85c8b7d94a9a0570e83834f1be7ad1a
+    sha256: 852c84636597a2babf0db6db289463271dfc8167e390adeacb310c1f26502870
     files:
     - from: LICENSE
       to: .
@@ -35,7 +35,7 @@ spec:
         os: darwin
         arch: amd64
     uri: https://github.com/dpuig/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-darwin-amd64.tar.gz
-    sha256: 3fb046d03db5cc37b76280946a7521e4358d7a427b84286c33e4f8ce54e70f56
+    sha256: 1ae7718bd9b9f617051edb02ea85a613024b7695bb6732f010cf4977922e7925
     files:
     - from: LICENSE
       to: .
@@ -47,7 +47,7 @@ spec:
         os: darwin
         arch: arm64
     uri: https://github.com/dpuig/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-darwin-arm64.tar.gz
-    sha256: 62d26f2c336c2c8bd0ff60c1304f5c2b0983f5f612ba75861cb88d4393150deb
+    sha256: 1f9ec1b22b7835d8e98d9ecc6eb5ab60e7dcedd192d6e701cb3667b9a7a495ea
     files:
     - from: LICENSE
       to: .
@@ -59,7 +59,7 @@ spec:
         os: windows
         arch: amd64
     uri: https://github.com/dpuig/ingress-shift/releases/download/v0.1.0/ingress-shift-analyzer-windows-amd64.zip
-    sha256: 7c3f45df4eb3ed7ab1f9d53bb5c07b00fa6db10db9c490dc33909aed22a8270a
+    sha256: 718e3c9fc192b91ab5b04d3f761e3d7ecb1373476522563c5c352672c856dfeb
     files:
     - from: LICENSE
       to: .
