@@ -34,5 +34,10 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          # Pinned, not "latest": golangci-lint-action@v6's "latest" resolves
+          # to a v1.x release (observed: 1.64.8), and v1/v2 have incompatible
+          # .golangci.yml schemas. Pinning avoids silently breaking CI again
+          # if that resolution ever changes. Bump deliberately, in lockstep
+          # with .golangci.yml's schema version, not opportunistically.
+          version: v1.64.8
           args: --timeout=5m

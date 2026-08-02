@@ -37,12 +37,24 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: 0
+          # Set explicitly via the github context (resolved to literal text
+          # before the shell runs) rather than relying on the ambient
+          # $GITHUB_REF_NAME shell env var — v0.1.0 shipped with every
+          # binary reporting "dev" from --version because that env var came
+          # through empty in this step for a reason that didn't reproduce
+          # locally; this removes the ambiguity instead of re-guessing at it.
+          VERSION: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          echo "Building version: ${VERSION}"
+          if [ -z "${VERSION}" ]; then
+            echo "::error::VERSION is empty — refusing to build an unversioned release binary"
+            exit 1
+          fi
           ext=""
           if [ "${{ matrix.goos }}" = "windows" ]; then ext=".exe"; fi
           mkdir -p dist
-          go build -trimpath -ldflags "-s -w -X main.Version=${GITHUB_REF_NAME}" \
+          go build -trimpath -ldflags "-s -w -X main.Version=${VERSION}" \
             -o "dist/ingress-shift-analyzer-${{ matrix.goos }}-${{ matrix.goarch }}${ext}" \
             ./src/analyzer
 
